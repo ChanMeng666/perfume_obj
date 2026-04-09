@@ -1,0 +1,12 @@
+{
+  "name": "perfume-3d-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npx serve .",
+    "deploy": "wrangler pages deploy . --project-name=perfume-3d-viewer"
+  },
+  "devDependencies": {
+    "wrangler": "^3"
+  }
+}

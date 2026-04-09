@@ -4,18 +4,132 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Perfume 3D Viewer</title>
+<meta name="description" content="Interactive 3D viewer for Perfume dance pose models — a-chan, kashiyuka, nocchi">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { overflow: hidden; background: #1a1a2e; }
+  body { overflow: hidden; background: #0d0d1a; font-family: 'Inter', system-ui, sans-serif; }
   canvas { display: block; }
+
+  /* Loading Screen */
   #loading {
     position: fixed; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    background: #1a1a2e; color: #eee;
-    font-family: system-ui, sans-serif; font-size: 1.2rem;
-    z-index: 10; transition: opacity 0.5s;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: #0d0d1a; color: #e0e0e8;
+    z-index: 100; transition: opacity 0.8s ease;
   }
   #loading.hidden { opacity: 0; pointer-events: none; }
+  #loading-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.4rem; font-weight: 600;
+    letter-spacing: 0.35em; text-transform: uppercase;
+    margin-bottom: 0.3rem;
+  }
+  #loading-subtitle {
+    font-size: 0.7rem; font-weight: 300;
+    letter-spacing: 0.5em; text-transform: uppercase;
+    opacity: 0.5; margin-bottom: 2.5rem;
+  }
+  #progress-track {
+    width: 180px; height: 2px;
+    background: rgba(255,255,255,0.08); border-radius: 1px;
+    overflow: hidden; margin-bottom: 1rem;
+  }
+  #progress-bar {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #ff4f7b, #4fa8ff, #6bff8a);
+    border-radius: 1px; transition: width 0.3s ease;
+  }
+  #loading-pct {
+    font-size: 0.65rem; font-weight: 300;
+    letter-spacing: 0.2em; opacity: 0.4;
+  }
+
+  /* Overlay Elements */
+  .overlay {
+    position: fixed; z-index: 10;
+    pointer-events: none; color: #e0e0e8;
+    opacity: 0; transform: translateY(8px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .overlay.visible { opacity: 1; transform: translateY(0); }
+
+  #header { top: 2rem; left: 2rem; }
+  #header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem; font-weight: 600;
+    letter-spacing: 0.3em; text-transform: uppercase;
+    line-height: 1;
+  }
+  #header p {
+    font-size: 0.6rem; font-weight: 300;
+    letter-spacing: 0.5em; text-transform: uppercase;
+    opacity: 0.5; margin-top: 0.35rem;
+  }
+
+  .glass-panel {
+    background: rgba(13, 13, 26, 0.6);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px; padding: 1rem 1.2rem;
+    pointer-events: auto;
+  }
+
+  #member-panel { bottom: 2rem; left: 2rem; }
+  .member-row {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.25rem 0;
+  }
+  .member-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+    animation: pulse 3s ease-in-out infinite;
+  }
+  .member-name {
+    font-size: 0.7rem; font-weight: 400;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    opacity: 0.8;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 6px 2px currentColor; }
+  }
+
+  #controls-hint { bottom: 2rem; right: 2rem; }
+  .hint-line {
+    font-size: 0.6rem; font-weight: 300;
+    letter-spacing: 0.08em; opacity: 0.45;
+    line-height: 1.7;
+  }
+  .hint-desktop { display: block; }
+  .hint-touch { display: none; }
+
+  #footer {
+    bottom: 0.8rem; left: 50%; transform: translateX(-50%);
+    font-size: 0.55rem; font-weight: 300;
+    letter-spacing: 0.1em; opacity: 0.25;
+    white-space: nowrap;
+  }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    #header { top: 1.2rem; left: 1.2rem; }
+    #header h1 { font-size: 1.1rem; }
+    #header p { font-size: 0.5rem; }
+    #member-panel { bottom: 1.2rem; left: 1.2rem; }
+    #controls-hint { bottom: 1.2rem; right: 1.2rem; }
+    .glass-panel { padding: 0.7rem 0.9rem; border-radius: 10px; }
+    .member-name { font-size: 0.6rem; }
+    .hint-line { font-size: 0.55rem; }
+    #loading-title { font-size: 1.6rem; }
+  }
+
+  @media (pointer: coarse) {
+    .hint-desktop { display: none; }
+    .hint-touch { display: block; }
+  }
 </style>
 <script type="importmap">
 {
@@ -27,37 +141,114 @@
 </script>
 </head>
 <body>
-<div id="loading">Loading model…</div>
+
+<!-- Loading Screen -->
+<div id="loading">
+  <div id="loading-title">Perfume</div>
+  <div id="loading-subtitle">3D Viewer</div>
+  <div id="progress-track"><div id="progress-bar"></div></div>
+  <div id="loading-pct">0%</div>
+</div>
+
+<!-- Header -->
+<div id="header" class="overlay">
+  <h1>Perfume</h1>
+  <p>3D Viewer</p>
+</div>
+
+<!-- Member Legend -->
+<div id="member-panel" class="overlay">
+  <div class="glass-panel">
+    <div class="member-row">
+      <div class="member-dot" style="background: #ff4f7b; color: #ff4f7b;"></div>
+      <span class="member-name">a-chan</span>
+    </div>
+    <div class="member-row">
+      <div class="member-dot" style="background: #4fa8ff; color: #4fa8ff;"></div>
+      <span class="member-name">kashiyuka</span>
+    </div>
+    <div class="member-row">
+      <div class="member-dot" style="background: #6bff8a; color: #6bff8a;"></div>
+      <span class="member-name">nocchi</span>
+    </div>
+  </div>
+</div>
+
+<!-- Controls Hint -->
+<div id="controls-hint" class="overlay">
+  <div class="glass-panel">
+    <div class="hint-line hint-desktop">Drag to rotate</div>
+    <div class="hint-line hint-desktop">Scroll to zoom</div>
+    <div class="hint-line hint-desktop">Right-drag to pan</div>
+    <div class="hint-line hint-touch">Touch drag to rotate</div>
+    <div class="hint-line hint-touch">Pinch to zoom</div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div id="footer" class="overlay">Perfume Global Site Project &middot; Three.js</div>
+
 <script type="module">
 import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+/* ── Scene ── */
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1a2e);
+scene.background = new THREE.Color(0x0d0d1a);
 
-const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 1000);
+/* ── Camera ── */
+const camera = new THREE.PerspectiveCamera(
+  innerWidth < 600 ? 60 : 50,
+  innerWidth / innerHeight, 0.1, 1000
+);
+
+/* ── Renderer ── */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
 document.body.appendChild(renderer.domElement);
 
+/* ── Controls ── */
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.8;
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-dirLight.position.set(5, 10, 7);
-scene.add(dirLight);
-const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
-backLight.position.set(-5, -2, -5);
-scene.add(backLight);
+/* ── Lighting ── */
+// Ambient — low for drama
+scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 
+// Key light — warm
+const keyLight = new THREE.DirectionalLight(0xfff5e6, 1.0);
+keyLight.position.set(5, 10, 7);
+scene.add(keyLight);
+
+// Fill light — cool
+const fillLight = new THREE.DirectionalLight(0xe6f0ff, 0.3);
+fillLight.position.set(-3, 5, -3);
+scene.add(fillLight);
+
+// Rim / back light
+const rimLight = new THREE.DirectionalLight(0xffffff, 0.5);
+rimLight.position.set(-5, 3, -8);
+scene.add(rimLight);
+
+// Hemisphere ground bounce
+scene.add(new THREE.HemisphereLight(0x1a1a2e, 0x2a1a3e, 0.2));
+
+/* ── Member Colors ── */
 const colors = {
-  'a-chan': 0xff6b8a,
-  'kashiyuka': 0x6bc5ff,
-  'nocchi': 0x8aff6b,
+  'a-chan':     0xff4f7b,
+  'kashiyuka': 0x4fa8ff,
+  'nocchi':    0x6bff8a,
 };
+
+/* ── Load Model ── */
+const progressBar = document.getElementById('progress-bar');
+const loadingPct = document.getElementById('loading-pct');
 
 new OBJLoader().load(
   'perfume_3.obj',
@@ -65,9 +256,10 @@ new OBJLoader().load(
     obj.traverse((child) => {
       if (child.isMesh) {
         const color = colors[child.name] || 0xcccccc;
-        child.material = new THREE.MeshPhongMaterial({
+        child.material = new THREE.MeshStandardMaterial({
           color,
-          shininess: 60,
+          roughness: 0.45,
+          metalness: 0.1,
           side: THREE.DoubleSide,
         });
       }
@@ -82,27 +274,51 @@ new OBJLoader().load(
     controls.target.set(0, 0, 0);
     controls.update();
 
+    // Ground plane
+    const groundGeo = new THREE.CircleGeometry(size * 0.8, 64);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x0d0d1a,
+      roughness: 0.9,
+      metalness: 0.0,
+      transparent: true,
+      opacity: 0.4,
+    });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = box.min.y - center.y;
+    scene.add(ground);
+
     scene.add(obj);
+
+    // Hide loading, show overlays
     document.getElementById('loading').classList.add('hidden');
+    const overlays = document.querySelectorAll('.overlay');
+    overlays.forEach((el, i) => {
+      setTimeout(() => el.classList.add('visible'), i * 150);
+    });
   },
   (xhr) => {
     if (xhr.total) {
       const pct = Math.round((xhr.loaded / xhr.total) * 100);
-      document.getElementById('loading').textContent = `Loading model… ${pct}%`;
+      progressBar.style.width = pct + '%';
+      loadingPct.textContent = pct + '%';
     }
   },
   (err) => {
-    document.getElementById('loading').textContent = 'Failed to load model.';
+    loadingPct.textContent = 'Failed to load model';
     console.error(err);
   }
 );
 
+/* ── Resize ── */
 window.addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
+  camera.fov = innerWidth < 600 ? 60 : 50;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
 
+/* ── Render Loop ── */
 (function animate() {
   requestAnimationFrame(animate);
   controls.update();
